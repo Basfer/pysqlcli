@@ -1,15 +1,15 @@
 import os
 import argparse
-import logging
 import sys
 
 import oracledb
 import psycopg2
+
 from dotenv import load_dotenv
 
 import tokenizer
-from tokenizer import split_statements
 
+import logging
 
 # Настройка логгера для вывода в stderr
 logging.basicConfig(
@@ -32,71 +32,54 @@ load_dotenv()
 # print(os.environ['user'])
 
 
-def get_console_encoding_windows():
-    print(__dict__)
+def get_console_encoding():
+    # import locale
+    # encodings = {
+    #     'stdout': getattr(sys.stdout, 'encoding', None),
+    #     'stderr': getattr(sys.stderr, 'encoding', None),
+    #     'stdin': getattr(sys.stdin, 'encoding', None),
+    #     'locale.getpreferredencoding': locale.getpreferredencoding(),
+    #     'sys.getdefaultencoding': sys.getdefaultencoding()
+    # }
 
     ret = 0
     if sys.platform == "win32":
         try:
             # Пытаемся получить кодировку консоли
             import ctypes
-            from ctypes import wintypes
-
-            # Получаем кодовую страницу консоли
             kernel32 = ctypes.windll.kernel32
-            print(kernel32.GetConsoleCP())
-            console_handle = kernel32.GetStdHandle(-11)  # STD_OUTPUT_HANDLE
-            code_page = wintypes.DWORD()
-            print(code_page.value)
+            if (cp := kernel32.GetConsoleCP()) == 65001:  # UTF-8
+                ret = 'utf-8'
+            elif cp:
+                ret = f'cp{cp}'
+        except Exception as e:
+            logging.ERROR(e)
 
-            if kernel32.GetConsoleCP(byref(code_page)):
-                cp = code_page.value
-                if cp == 65001:  # UTF-8
-                    ret = 'utf-8'
-                elif cp == 1251:  # Windows-1251
-                    ret = 'cp1251'
-                else:
-                    ret = f'cp{cp}'
-        except:
-            pass
+    # pprint(encodings)
 
-    encodings = {
-        'stdout': getattr(sys.stdout, 'encoding', None),
-        'stderr': getattr(sys.stderr, 'encoding', None),
-        'stdin': getattr(sys.stdin, 'encoding', None),
-        'locale.getpreferredencoding': locale.getpreferredencoding(),
-        'sys.getdefaultencoding': sys.getdefaultencoding(),
-        ''
-    }
+    return ret or sys.stdin.encoding or 'utf-8'
 
+# cp = os.system("chcp")
+# print(cp.encode(get_console_encoding()).decode(sys.stdout.encoding))
 
-    return ret or sys.stdout.encoding or 'utf-8'
-
-import sys
-import locale
-
-print("Default encoding:", sys.getdefaultencoding())
-print("Stdout encoding:", sys.stdout.encoding)
-print("Stderr encoding:", sys.stderr.encoding)
-print("Stdin encoding:", sys.stdin.encoding)
-print("Locale preferred encoding:", locale.getpreferredencoding())
-print("Locale preferred encoding (False):", locale.getpreferredencoding(False))
-print(os.system("chcp"))
-
-encoding = get_console_encoding_windows()
-print(f"Кодировка консоли: {encoding}")
-s = 'йцук'
-s = input()
-print(s)
-try:
-    print(s.encode('cp1251').decode())
-except Exception as e: print(e)
-
-try:
-    print(s.encode('cp1251').decode('cp866'))
-except Exception as e: print(e)
-
-exit(0)
+# import locale
+#
+# print("Locale preferred encoding (False):", locale.getpreferredencoding(False))
+#
+# encoding = get_console_encoding()
+# print(f"Кодировка консоли: {encoding}")
+# s = 'йцук'
+# s = input()
+# print(s)
+# try:
+#     print(s.encode('cp1251').decode())
+# except Exception as e: print(e)
+#
+# try:
+#     print(s.encode('cp1251').decode('cp866'))
+# except Exception as e: print(e)
+#
+# exit(0)
 
 def connect_oracle(connstr, user, password):
     """Подключение к Oracle базе данных с использованием python-oracledb"""
