@@ -33,14 +33,14 @@ load_dotenv()
 
 
 def get_console_encoding():
-    # import locale
-    # encodings = {
-    #     'stdout': getattr(sys.stdout, 'encoding', None),
-    #     'stderr': getattr(sys.stderr, 'encoding', None),
-    #     'stdin': getattr(sys.stdin, 'encoding', None),
-    #     'locale.getpreferredencoding': locale.getpreferredencoding(),
-    #     'sys.getdefaultencoding': sys.getdefaultencoding()
-    # }
+    import locale
+    encodings = {
+        'stdout': getattr(sys.stdout, 'encoding', None),
+        'stderr': getattr(sys.stderr, 'encoding', None),
+        'stdin': getattr(sys.stdin, 'encoding', None),
+        'locale.getpreferredencoding': locale.getpreferredencoding(),
+        'sys.getdefaultencoding': sys.getdefaultencoding()
+    }
 
     ret = 0
     if sys.platform == "win32":
@@ -55,7 +55,8 @@ def get_console_encoding():
         except Exception as e:
             logging.ERROR(e)
 
-    # pprint(encodings)
+    from pprint import pprint
+    pprint(encodings)
 
     return ret or sys.stdin.encoding or 'utf-8'
 
@@ -99,7 +100,7 @@ def connect_postgres(connstr, user, password):
     try:
         host, port, database = connstr.replace(':', '/').split('/')
     except Exception as e:
-        logging.critical(f"Ошибка разбора строки подключения к PostgreSQL '{connstr}': {error}")
+        logging.critical(f"Ошибка разбора строки подключения к PostgreSQL '{connstr}': {e}")
         return None
     try:
         connection = psycopg2.connect(
@@ -110,15 +111,15 @@ def connect_postgres(connstr, user, password):
             password=password
         )
         return connection
-    except psycopg2.Error as error:
-        logging.critical(f"Ошибка подключения к PostgreSQL '{connstr}': {error}")
+    except psycopg2.Error as e:
+        logging.critical(f"Ошибка подключения к PostgreSQL '{connstr}': {e}")
         return None
 
 def connect_db(connectionstring, user, password, type):
     connect_func = connect_oracle if type.lower() == 'oracle' else connect_postgres
     return connect_func(connectionstring, user, password)
 
-def execute_query_oracle(connection, query):
+def execute_query_oracle(connection, query, enc='utf-8'):
     """Выполнение запроса к Oracle"""
     try:
         cursor = connection.cursor()
@@ -135,6 +136,7 @@ def execute_query_oracle(connection, query):
             
             # Вывод данных
             for row in rows:
+                # print(" | ".join(str(item).encode('iso-8859-5').decode('cp1251') for item in row))
                 print(" | ".join(str(item) for item in row))
         else:
             # Для других запросов (INSERT, UPDATE, DELETE)
@@ -144,7 +146,7 @@ def execute_query_oracle(connection, query):
     except oracledb.Error as error:
         logging.error(f"Ошибка выполнения запроса в Oracle: {error}")
 
-def execute_query_postgresql(connection, query):
+def execute_query_postgresql(connection, query, enc='utf-8'):
     """Выполнение запроса к PostgreSQL"""
     try:
         cursor = connection.cursor()
@@ -171,11 +173,11 @@ def execute_query_postgresql(connection, query):
         logging.error(f"Ошибка выполнения запроса в PostgreSQL: {error}")
 
 
-def execute_statements(connection, statements):
+def execute_statements(connection, statements, enc='utf-8'):
     execute_func = execute_query_oracle if isinstance(connection, oracledb.Connection) else execute_query_postgresql
     if isinstance(statements, str): statements = [statements]
     for statement in statements:
-        execute_func(connection, statement.strip().strip(';'))
+        execute_func(connection, statement.strip().strip(';'), enc=enc)
 
 
 def main():
@@ -190,8 +192,12 @@ def main():
 
     args = parser.parse_args()
 
-    # Проверка обязательных параметров
+    print(args)
+    connection = connect_oracle(args.connectionstring, args.user, args.password)
 
+    enc = get_console_encoding()
+    print(f'enc={enc}')
+    # exit()
 
     connection = connect_db(args.connectionstring, args.user, args.password, type=args.type)
     # Enable autocommit
@@ -210,6 +216,7 @@ def main():
     original_stdin = sys.stdin
 
     for inpfile in files:
+        # если передано имя файла - открываем на чтение; иначе читаем stdin
         if isinstance(inpfile, str):
             try:
                 sys.stdin = open(inpfile, 'r', encoding='utf-8')
@@ -235,7 +242,7 @@ def main():
                 continue
 
             l, sql = 0, ''
-            execute_statements(connection, [s[0] for s in statements])
+            execute_statements(connection, [s[0] for s in statements], enc=enc)
 
     sys.stdin = original_stdin
 
