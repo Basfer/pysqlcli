@@ -52,8 +52,17 @@ class OracleDatabase(DatabaseInterface):
                 print(f"Запрос выполнен. Затронуто строк: {cursor.rowcount}")
 
             cursor.close()
-        except oracledb.Error as error:
+        except oracledb.DatabaseError as error:
             logging.error(f"Ошибка выполнения запроса в Oracle: {error}")
+            lines = query.splitlines(keepends=True)
+            pos = error.args[0].offset
+            for i, line in enumerate(lines):
+                if pos <= len(line):
+                    print(f"Ошибка в строке {i + 1}:")
+                    print(line)
+                    print(" " * (pos - 1) + "^")
+                    break
+                pos -= len(line)
 
     def execute_statements(self, statements, enc='utf-8'):
         """Выполнение нескольких запросов к Oracle"""
